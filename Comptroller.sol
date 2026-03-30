@@ -848,7 +848,7 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
       */
     function _setCloseFactor(uint newCloseFactorMantissa) external returns (uint) {
         // Check caller is admin
-    	require(msg.sender == admin, "only admin can set close factor");
+        require(msg.sender == admin, "only admin can set close factor");
 
         uint oldCloseFactorMantissa = closeFactorMantissa;
         closeFactorMantissa = newCloseFactorMantissa;
@@ -962,8 +962,7 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
     }
 
     function _initializeMarket(address cToken) internal {
-        uint32 blockNumber = safe32(getBlockNumber(), "block number exceeds 32 bits");
-
+        uint40 blockNumber = safe40(getBlockNumber(), "block number exceeds 40 bits");
         CompMarketState storage supplyState = compSupplyState[cToken];
         CompMarketState storage borrowState = compBorrowState[cToken];
 
@@ -972,12 +971,12 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
          */
         if (supplyState.index == 0) {
             // Initialize supply state index with default value
-            supplyState.index = compInitialIndex;
+            supplyState.index = safe216(compInitialIndex, "initial index exceeds 216 bits");
         }
 
         if (borrowState.index == 0) {
             // Initialize borrow state index with default value
-            borrowState.index = compInitialIndex;
+            borrowState.index = safe216(compInitialIndex, "initial index exceeds 216 bits");
         }
 
         /*
@@ -994,7 +993,7 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
       * @param newBorrowCaps The new borrow cap values in underlying to be set. A value of 0 corresponds to unlimited borrowing.
       */
     function _setMarketBorrowCaps(CToken[] calldata cTokens, uint[] calldata newBorrowCaps) external {
-    	require(msg.sender == admin || msg.sender == borrowCapGuardian, "only admin or borrow cap guardian can set borrow caps");
+        require(msg.sender == admin || msg.sender == borrowCapGuardian, "only admin or borrow cap guardian can set borrow caps");
 
         uint numMarkets = cTokens.length;
         uint numBorrowCaps = newBorrowCaps.length;
@@ -1188,13 +1187,13 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
     function updateCompSupplyIndex(address cToken) internal {
         CompMarketState storage supplyState = compSupplyState[cToken];
         uint supplySpeed = compSupplySpeeds[cToken];
-        uint32 blockNumber = safe32(getBlockNumber(), "block number exceeds 32 bits");
+        uint40 blockNumber = safe40(getBlockNumber(), "block number exceeds 40 bits");
         uint deltaBlocks = sub_(uint(blockNumber), uint(supplyState.block));
         if (deltaBlocks > 0 && supplySpeed > 0) {
             uint supplyTokens = CToken(cToken).totalSupply();
             uint compAccrued = mul_(deltaBlocks, supplySpeed);
             Double memory ratio = supplyTokens > 0 ? fraction(compAccrued, supplyTokens) : Double({mantissa: 0});
-            supplyState.index = safe224(add_(Double({mantissa: supplyState.index}), ratio).mantissa, "new index exceeds 224 bits");
+            supplyState.index = safe216(add_(Double({mantissa: supplyState.index}), ratio).mantissa, "new index exceeds 216 bits");
             supplyState.block = blockNumber;
         } else if (deltaBlocks > 0) {
             supplyState.block = blockNumber;
@@ -1209,13 +1208,13 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
     function updateCompBorrowIndex(address cToken, Exp memory marketBorrowIndex) internal {
         CompMarketState storage borrowState = compBorrowState[cToken];
         uint borrowSpeed = compBorrowSpeeds[cToken];
-        uint32 blockNumber = safe32(getBlockNumber(), "block number exceeds 32 bits");
+        uint40 blockNumber = safe40(getBlockNumber(), "block number exceeds 40 bits");
         uint deltaBlocks = sub_(uint(blockNumber), uint(borrowState.block));
         if (deltaBlocks > 0 && borrowSpeed > 0) {
             uint borrowAmount = div_(CToken(cToken).totalBorrows(), marketBorrowIndex);
             uint compAccrued = mul_(deltaBlocks, borrowSpeed);
             Double memory ratio = borrowAmount > 0 ? fraction(compAccrued, borrowAmount) : Double({mantissa: 0});
-            borrowState.index = safe224(add_(Double({mantissa: borrowState.index}), ratio).mantissa, "new index exceeds 224 bits");
+            borrowState.index = safe216(add_(Double({mantissa: borrowState.index}), ratio).mantissa, "new index exceeds 216 bits");
             borrowState.block = blockNumber;
         } else if (deltaBlocks > 0) {
             borrowState.block = blockNumber;
@@ -1470,5 +1469,21 @@ contract Comptroller is ComptrollerV7Storage, ComptrollerInterface, ComptrollerE
      */
     function getCompAddress() virtual public view returns (address) {
         return 0xc00e94Cb662C3520282E6f5717214004A7f26888;
+    }
+
+    /**
+     * @notice Safely downcast a uint to a uint40
+     */
+    function safe40(uint n, string memory errorMessage) internal pure returns (uint40) {
+        require(n < 2**40, errorMessage);
+        return uint40(n);
+    }
+
+    /**
+     * @notice Safely downcast a uint to a uint216
+     */
+    function safe216(uint n, string memory errorMessage) internal pure returns (uint216) {
+        require(n < 2**216, errorMessage);
+        return uint216(n);
     }
 }

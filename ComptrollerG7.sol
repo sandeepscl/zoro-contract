@@ -833,7 +833,7 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
       */
     function _setCloseFactor(uint newCloseFactorMantissa) external returns (uint) {
         // Check caller is admin
-    	require(msg.sender == admin, "only admin can set close factor");
+        require(msg.sender == admin, "only admin can set close factor");
 
         uint oldCloseFactorMantissa = closeFactorMantissa;
         closeFactorMantissa = newCloseFactorMantissa;
@@ -953,7 +953,7 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
       * @param newBorrowCaps The new borrow cap values in underlying to be set. A value of 0 corresponds to unlimited borrowing.
       */
     function _setMarketBorrowCaps(CToken[] calldata cTokens, uint[] calldata newBorrowCaps) external {
-    	require(msg.sender == admin || msg.sender == borrowCapGuardian, "only admin or borrow cap guardian can set borrow caps");
+        require(msg.sender == admin || msg.sender == borrowCapGuardian, "only admin or borrow cap guardian can set borrow caps");
 
         uint numMarkets = cTokens.length;
         uint numBorrowCaps = newBorrowCaps.length;
@@ -1076,15 +1076,15 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
 
             if (compSupplyState[address(cToken)].index == 0 && compSupplyState[address(cToken)].block == 0) {
                 compSupplyState[address(cToken)] = CompMarketState({
-                    index: compInitialIndex,
-                    block: safe32(getBlockNumber(), "block number exceeds 32 bits")
+                    index: safe216(compInitialIndex, "initial index exceeds 216 bits"), // Fix: strict typing
+                    block: safe40(getBlockNumber(), "block number exceeds 40 bits") // Fix: strict typing
                 });
             }
 
             if (compBorrowState[address(cToken)].index == 0 && compBorrowState[address(cToken)].block == 0) {
                 compBorrowState[address(cToken)] = CompMarketState({
-                    index: compInitialIndex,
-                    block: safe32(getBlockNumber(), "block number exceeds 32 bits")
+                    index: safe216(compInitialIndex, "initial index exceeds 216 bits"), // Fix: strict typing
+                    block: safe40(getBlockNumber(), "block number exceeds 40 bits") // Fix: strict typing
                 });
             }
         }
@@ -1110,11 +1110,11 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
             Double memory ratio = supplyTokens > 0 ? fraction(compAccrued, supplyTokens) : Double({mantissa: 0});
             Double memory index = add_(Double({mantissa: supplyState.index}), ratio);
             compSupplyState[cToken] = CompMarketState({
-                index: safe224(index.mantissa, "new index exceeds 224 bits"),
-                block: safe32(blockNumber, "block number exceeds 32 bits")
+                index: safe216(index.mantissa, "new index exceeds 216 bits"), // Fix: strict typing
+                block: safe40(blockNumber, "block number exceeds 40 bits") // Fix: strict typing
             });
         } else if (deltaBlocks > 0) {
-            supplyState.block = safe32(blockNumber, "block number exceeds 32 bits");
+            supplyState.block = safe40(blockNumber, "block number exceeds 40 bits"); // Fix: strict typing
         }
     }
 
@@ -1133,11 +1133,11 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
             Double memory ratio = borrowAmount > 0 ? fraction(compAccrued, borrowAmount) : Double({mantissa: 0});
             Double memory index = add_(Double({mantissa: borrowState.index}), ratio);
             compBorrowState[cToken] = CompMarketState({
-                index: safe224(index.mantissa, "new index exceeds 224 bits"),
-                block: safe32(blockNumber, "block number exceeds 32 bits")
+                index: safe216(index.mantissa, "new index exceeds 216 bits"), // Fix: strict typing
+                block: safe40(blockNumber, "block number exceeds 40 bits") // Fix: strict typing
             });
         } else if (deltaBlocks > 0) {
-            borrowState.block = safe32(blockNumber, "block number exceeds 32 bits");
+            borrowState.block = safe40(blockNumber, "block number exceeds 40 bits"); // Fix: strict typing
         }
     }
 
@@ -1333,5 +1333,21 @@ contract ComptrollerG7 is ComptrollerV5Storage, ComptrollerInterface, Comptrolle
      */
     function getCompAddress() public view returns (address) {
         return 0xc00e94Cb662C3520282E6f5717214004A7f26888;
+    }
+
+    /**
+     * @notice Safely downcast a uint to a uint40
+     */
+    function safe40(uint n, string memory errorMessage) internal pure returns (uint40) {
+        require(n < 2**40, errorMessage);
+        return uint40(n);
+    }
+
+    /**
+     * @notice Safely downcast a uint to a uint216
+     */
+    function safe216(uint n, string memory errorMessage) internal pure returns (uint216) {
+        require(n < 2**216, errorMessage);
+        return uint216(n);
     }
 }
